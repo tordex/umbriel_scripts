@@ -1,0 +1,155 @@
+#!/usr/bin/env python3
+
+import asyncio
+import os
+import shlex
+
+import umbriel_utils
+from sidebar_manager import Side, SidebarManager
+from umbriel_stream import UmbrielStream
+
+stream: UmbrielStream | None = None
+
+SOCKET_PATH = "/tmp/umbriel_sidebar.sock"
+
+sidebar_manager = SidebarManager()
+
+def command_dock_left() -> str:
+    # Implement the logic to dock the pocket to the left of the specified monitor
+    sidebar_manager.dock_window(side=Side.LEFT)
+    return "Docked window to the left"
+
+def command_dock_right() -> str:
+    # Implement the logic to dock the pocket to the right of the specified monitor
+    sidebar_manager.dock_window(side=Side.RIGHT)
+    return "Docked window to the right"
+
+def command_toggle(scratchpad_name: str) -> str:
+    # Implement the logic to toggle the sidebar
+    return f"Toggled sidebar to '{scratchpad_name}'"
+
+commands = {
+    "dock-left": {
+        "handler": command_dock_left,
+        "args": [],
+        "args_description": []
+    },
+    "dock-right": {
+        "handler": command_dock_right,
+        "args": [],
+        "args_description": []
+    },
+    "toggle": {
+        "handler": command_toggle,
+        "args": [str],
+        "args_description": ["scratchpad_name"]
+    },
+}
+
+
+# Get help text for a specific command.
+def get_command_help(command_name: str) -> str:
+    if command_name not in commands:
+        return f"ERROR: Unknown command '{command_name}'\n"
+
+    cmd = commands[command_name]
+    return " ".join(f"{arg}:{typ.__name__}" for arg, typ in zip(cmd["args_description"], cmd["args"]))
+
+# Handle a command line input and return the response.
+def handle_command(cmd_line: str) -> str:
+    try:
+        parts = shlex.split(cmd_line.strip())
+    except ValueError as e:
+        umbriel_utils.notify_error("Invalid syntax", f"Failed to parse command line: {e}")
+        return f"ERROR: Invalid syntax ({e})\n"
+
+    if not parts:
+        umbriel_utils.notify_error("Empty command", "No command provided.")
+        return "ERROR: Empty command\n"
+
+    command, args = parts[0].lower(), parts[1:]
+
+    if command not in commands:
+        umbriel_utils.notify_error("Unknown command", f"Unknown command '{command}'.")
+        return f"ERROR: Unknown command '{command}'\n"
+
+    cmd = commands[command]
+
+    if len(args) != len(cmd["args"]):
+        umbriel_utils.notify_error("Invalid arguments", f"Command '{command}' expects {len(cmd['args'])} arguments: {get_command_help(command).strip()}")
+        return f"ERROR: Command '{command}' expects {len(cmd['args'])} arguments: {get_command_help(command).strip()}\n"
+
+    # Convert arguments to the expected types
+    try:
+        args = [typ(arg) for typ, arg in zip(cmd["args"], args)]
+    except ValueError:
+        umbriel_utils.notify_error("Invalid arguments", f"Failed to convert arguments. Expected arguments: {get_command_help(command).strip()}")
+        return f"ERROR: Failed to convert arguments. Expected arguments: {get_command_help(command).strip()}\n"
+
+    return cmd["handler"](*args)
+
+
+def cleanup():
+    """Cleanup function to remove the socket file on exit."""
+    if os.path.exists(SOCKET_PATH):
+        try:
+            os.unlink(SOCKET_PATH)
+        except OSError:
+            pass
+
+
+async def handle_client(
+    reader: asyncio.StreamReader,
+    writer: asyncio.StreamWriter
+):
+    """Async function to handle a single client connection."""    
+    try:
+        data = await reader.read(4096)
+        if not data:
+            return
+
+        cmd_line = data.decode("utf-8")
+        print(f"[Server] Received: {cmd_line.strip()}")
+
+        response = handle_command(cmd_line)
+
+        writer.write(response.encode("utf-8"))
+        await writer.drain()
+
+    finally:
+        writer.close()
+        await writer.wait_closed()
+
+def handle_umbriel_window(change_type: str, data: dict) -> None:
+    """Handle Umbriel window events."""
+    #print(f"[Handler] Type: {change_type}, Data: {data["title"]}")
+    if change_type == "deleted":
+        sidebar_manager.handle_window_closed(data)
+    elif change_type == "changed":
+        sidebar_manager.handle_window_changed(data)
+
+async def main():
+    """Main entry point for the daemon."""
+    global stream
+    cleanup()
+
+    # 1. Start the Unix socket server
+    server = await asyncio.start_unix_server(handle_client, path=SOCKET_PATH)
+    print(f"[Daemon] Listening on {SOCKET_PATH}")
+
+    stream = UmbrielStream(events=["windows"], handlers={"windows": handle_umbriel_window})
+    await stream.open()
+
+    # 3. Hold the server open and wait for shutdown signal
+    async with server:
+        await server.serve_forever()
+
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\n[Daemon] Received SIGINT (Ctrl+C). Shutting down...")
+    finally:
+        cleanup()
+        print("[Daemon] Socket removed. Stopped.")
