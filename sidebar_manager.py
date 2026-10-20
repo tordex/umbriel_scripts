@@ -1,5 +1,6 @@
 import asyncio
 import os
+from dataclasses import dataclass
 from enum import Enum
 
 from output import Output
@@ -22,13 +23,31 @@ struts_sizes = {
     Side.BOTTOM: 100
 }
 
+@dataclass
+class Margins:
+    left: int = 0
+    top: int = 0
+    right: int = 0
+    bottom: int = 0
+
+
 class Struts:
-    def __init__(self, workspace_id: str, size: int, side: Side, gap: int = 0):
+    def __init__(self, workspace_id: str, size: int, side: Side, gap: int = 0,
+                 margins: Margins | None = None):
         self.workspace_id = workspace_id
         self.size = size
         self.side = side
         self.windows = []
         self.gap = gap
+        self.margins = margins if margins is not None else Margins()
+
+    def _inner_area(self, usable_width: int, usable_height: int) -> tuple[int, int, int, int]:
+        """Return (x, y, width, height) of the usable area reduced by the margins."""
+        m = self.margins
+        return (m.left,
+                m.top,
+                max(1, usable_width - m.left - m.right),
+                max(1, usable_height - m.top - m.bottom))
 
     def add_window(self, window: Window):
         self.windows.append(window)
@@ -92,102 +111,106 @@ class Struts:
 
 
 class StrutsLeft(Struts):
-    def __init__(self, workspace: str, size: int):
-        super().__init__(workspace_id=workspace, size=size, side=Side.LEFT, gap=0)
+    def __init__(self, workspace: str, size: int, gap: int = 0, margins: Margins | None = None):
+        super().__init__(workspace_id=workspace, size=size, side=Side.LEFT, gap=gap, margins=margins)
 
     def recalculate_positions(self, usable_x: int, usable_y: int, usable_width: int, usable_height: int):
         if len(self.windows) == 0:
             return
-        windows_left = 0
-        windows_width = self.size
-        windows_height = int(usable_height / len(self.windows) - self.gap * (len(self.windows) - 1))
+        inner_x, inner_y, _, inner_h = self._inner_area(usable_width, usable_height)
+        windows_left = inner_x
+        windows_width = self.size - self.margins.left - self.margins.right
+        windows_height = int((inner_h - self.gap * (len(self.windows) - 1)) / len(self.windows))
 
         width_fract = windows_width / usable_width
         height_fract = windows_height / usable_height
 
         for i, window in enumerate(self.windows):
             window.set_extent(width_fract, height_fract)
-            window.set_position(windows_left, i * (windows_height + self.gap))
+            window.set_position(windows_left, inner_y + i * (windows_height + self.gap))
 
     def update_sizes(self, window: Window) -> bool:
-        if window.width != self.size:
+        if window.width + self.margins.left + self.margins.right != self.size:
             print(f"[StrutsLeft] Updating size from {self.size} to {window.width}")
-            self.size = window.width
+            self.size = window.width + self.margins.left + self.margins.right
             return True
         return False
 
 
 class StrutsRight(Struts):
-    def __init__(self, workspace: str, size: int):
-        super().__init__(workspace_id=workspace, size=size, side=Side.RIGHT, gap=0)
+    def __init__(self, workspace: str, size: int, gap: int = 0, margins: Margins | None = None):
+        super().__init__(workspace_id=workspace, size=size, side=Side.RIGHT, gap=gap, margins=margins)
 
     def recalculate_positions(self, usable_x: int, usable_y: int, usable_width: int, usable_height: int):
         if len(self.windows) == 0:
             return
-        windows_left = usable_width - self.size
-        windows_width = self.size
-        windows_height = int(usable_height / len(self.windows) - self.gap * (len(self.windows) - 1))
+        _, inner_y, _, inner_h = self._inner_area(usable_width, usable_height)
+        windows_left = usable_width - self.size + self.margins.left
+        windows_width = self.size - self.margins.left - self.margins.right
+        windows_height = int((inner_h - self.gap * (len(self.windows) - 1)) / len(self.windows))
 
         width_fract = windows_width / usable_width
         height_fract = windows_height / usable_height
 
         for i, window in enumerate(self.windows):
             window.set_extent(width_fract, height_fract)
-            window.set_position(windows_left, (i * (windows_height + self.gap)))
+            window.set_position(windows_left, inner_y + i * (windows_height + self.gap))
 
     def update_sizes(self, window: Window):
-        if window.width != self.size:
-            self.size = window.width
+        if window.width + self.margins.left + self.margins.right != self.size:
+            self.size = window.width + self.margins.left + self.margins.right
             return True
         return False
 
 
 class StrutsTop(Struts):
-    def __init__(self, workspace: str, size: int):
-        super().__init__(workspace_id=workspace, size=size, side=Side.TOP, gap=0)
+    def __init__(self, workspace: str, size: int, gap: int = 0, margins: Margins | None = None):
+        super().__init__(workspace_id=workspace, size=size, side=Side.TOP, gap=gap, margins=margins)
 
     def recalculate_positions(self, usable_x: int, usable_y: int, usable_width: int, usable_height: int):
         if len(self.windows) == 0:
             return
-        windows_top = 0
-        windows_height = self.size
-        windows_width = int(usable_width / len(self.windows) - self.gap * (len(self.windows) - 1))
+        inner_x, inner_y, inner_w, _ = self._inner_area(usable_width, usable_height)
+        windows_top = inner_y
+        windows_height = self.size - self.margins.top - self.margins.bottom
+        windows_width = int((inner_w - self.gap * (len(self.windows) - 1)) / len(self.windows))
 
         width_fract = windows_width / usable_width
         height_fract = windows_height / usable_height
 
         for i, window in enumerate(self.windows):
             window.set_extent(width_fract, height_fract)
-            window.set_position(i * windows_width, windows_top)
+            window.set_position(inner_x + i * (windows_width + self.gap), windows_top)
 
     def update_sizes(self, window: Window):
-        if window.height != self.size:
-            self.size = window.height
+        if window.height + self.margins.top + self.margins.bottom != self.size:
+            self.size = window.height + self.margins.top + self.margins.bottom
             return True
         return False
 
 
 class StrutsBottom(Struts):
-    def __init__(self, workspace: str, size: int):
-        super().__init__(workspace_id=workspace, size=size, side=Side.BOTTOM, gap=0)
+    def __init__(self, workspace: str, size: int, gap: int = 0, margins: Margins | None = None):
+        super().__init__(workspace_id=workspace, size=size, side=Side.BOTTOM, gap=gap, margins=margins)
 
     def recalculate_positions(self, usable_x: int, usable_y: int, usable_width: int, usable_height: int):
         if len(self.windows) == 0:
             return
-        windows_top = usable_height - self.size
-        windows_height = self.size
-        windows_width = int(usable_width / len(self.windows) - self.gap * (len(self.windows) - 1))
+        inner_x, _, inner_w, _ = self._inner_area(usable_width, usable_height)
+        windows_top = usable_height - self.size + self.margins.top
+        windows_height = self.size - self.margins.top - self.margins.bottom
+        windows_width = int((inner_w - self.gap * (len(self.windows) - 1)) / len(self.windows))
 
         width_fract = windows_width / usable_width
         height_fract = windows_height / usable_height
 
         for i, window in enumerate(self.windows):
             window.set_extent(width_fract, height_fract)
-            window.set_position(i * windows_width, windows_top)
+            window.set_position(inner_x + i * (windows_width + self.gap), windows_top)
 
     def update_sizes(self, window: Window):
-        if window.height != self.size:
-            self.size = window.height
+        if window.height + self.margins.top + self.margins.bottom != self.size:
+            self.size = window.height + self.margins.top + self.margins.bottom
             return True
         return False
 
@@ -215,14 +238,19 @@ class SidebarManager:
                 strut_found = strut
                 break
         if strut_found is None:
+            margins = Margins()
+            margins.left = 10
+            margins.right = 10
+            margins.top = 10
+            margins.bottom = 10
             if side == Side.LEFT:
-                strut_found = StrutsLeft(workspace=window.workspace, size=struts_sizes[Side.LEFT])
+                strut_found = StrutsLeft(workspace=window.workspace, size=struts_sizes[Side.LEFT], margins=margins, gap=10)
             elif side == Side.RIGHT:
-                strut_found = StrutsRight(workspace=window.workspace, size=struts_sizes[Side.RIGHT])
+                strut_found = StrutsRight(workspace=window.workspace, size=struts_sizes[Side.RIGHT], margins=margins, gap=10)
             elif side == Side.TOP:
-                strut_found = StrutsTop(workspace=window.workspace, size=struts_sizes[Side.TOP])
+                strut_found = StrutsTop(workspace=window.workspace, size=struts_sizes[Side.TOP], margins=margins, gap=10)
             elif side == Side.BOTTOM:
-                strut_found = StrutsBottom(workspace=window.workspace, size=struts_sizes[Side.BOTTOM])
+                strut_found = StrutsBottom(workspace=window.workspace, size=struts_sizes[Side.BOTTOM], margins=margins)
             self.struts.append(strut_found)
         
         strut_found.add_window(window)
