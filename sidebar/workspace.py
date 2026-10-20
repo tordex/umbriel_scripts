@@ -1,4 +1,4 @@
-from umbriel_ipc import umbriel_send_command
+from ipc import umbriel_send_command
 
 
 class Workspace:

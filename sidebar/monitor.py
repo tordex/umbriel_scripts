@@ -1,4 +1,4 @@
-import umbriel_utils
+import utils
 
 
 # Define the monitor and window classes to encapsulate their properties and actions.
@@ -24,26 +24,27 @@ class monitor:
         """Make this monitor the focused monitor."""
         if self.data:
             command = ["niri", "msg", "action", "focus-monitor", self.get_name()]
-            return umbriel_utils.run_command(command)
+            return utils.run_command(command)
         return False
 
     @staticmethod
     def from_id(name):
         """Create a monitor object from a monitor ID."""
         command = ["niri", "msg", "--json", "outputs"]
-        data = umbriel_utils.run_command_json(command)
-        for monitor_name, monitor_data in data.items():
-            if monitor_name == name:
-                monitor_obj = monitor()
-                monitor_obj.data = monitor_data
-                return monitor_obj
+        data = utils.run_command_json(command)
+        if data is not None:
+            for monitor_name, monitor_data in data.items():
+                if monitor_name == name:
+                    monitor_obj = monitor()
+                    monitor_obj.data = monitor_data
+                    return monitor_obj
         return None
 
     @staticmethod
     def get_active_monitor():
         """Get the active monitor using niri."""
         command = ["niri", "msg", "--json", "focused-output"]
-        monitor_data = umbriel_utils.run_command_json(command)
+        monitor_data = utils.run_command_json(command)
         if monitor_data:
             monitor_obj = monitor()
             monitor_obj.data = monitor_data

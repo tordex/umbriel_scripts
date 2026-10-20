@@ -4,9 +4,9 @@ import asyncio
 import os
 import shlex
 
-import umbriel_utils
+import utils
 from sidebar_manager import Side, SidebarManager
-from umbriel_stream import UmbrielStream
+from stream import UmbrielStream
 
 stream: UmbrielStream | None = None
 
@@ -60,30 +60,30 @@ def handle_command(cmd_line: str) -> str:
     try:
         parts = shlex.split(cmd_line.strip())
     except ValueError as e:
-        umbriel_utils.notify_error("Invalid syntax", f"Failed to parse command line: {e}")
+        utils.notify_error("Invalid syntax", f"Failed to parse command line: {e}")
         return f"ERROR: Invalid syntax ({e})\n"
 
     if not parts:
-        umbriel_utils.notify_error("Empty command", "No command provided.")
+        utils.notify_error("Empty command", "No command provided.")
         return "ERROR: Empty command\n"
 
     command, args = parts[0].lower(), parts[1:]
 
     if command not in commands:
-        umbriel_utils.notify_error("Unknown command", f"Unknown command '{command}'.")
+        utils.notify_error("Unknown command", f"Unknown command '{command}'.")
         return f"ERROR: Unknown command '{command}'\n"
 
     cmd = commands[command]
 
     if len(args) != len(cmd["args"]):
-        umbriel_utils.notify_error("Invalid arguments", f"Command '{command}' expects {len(cmd['args'])} arguments: {get_command_help(command).strip()}")
+        utils.notify_error("Invalid arguments", f"Command '{command}' expects {len(cmd['args'])} arguments: {get_command_help(command).strip()}")
         return f"ERROR: Command '{command}' expects {len(cmd['args'])} arguments: {get_command_help(command).strip()}\n"
 
     # Convert arguments to the expected types
     try:
         args = [typ(arg) for typ, arg in zip(cmd["args"], args)]
     except ValueError:
-        umbriel_utils.notify_error("Invalid arguments", f"Failed to convert arguments. Expected arguments: {get_command_help(command).strip()}")
+        utils.notify_error("Invalid arguments", f"Failed to convert arguments. Expected arguments: {get_command_help(command).strip()}")
         return f"ERROR: Failed to convert arguments. Expected arguments: {get_command_help(command).strip()}\n"
 
     return cmd["handler"](*args)
