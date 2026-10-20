@@ -19,6 +19,16 @@ def command_dock_left() -> str:
     sidebar_manager.dock_window(side=Side.LEFT)
     return "Docked window to the left"
 
+def command_dock_top() -> str:
+    # Implement the logic to dock the pocket to the top of the specified monitor
+    sidebar_manager.dock_window(side=Side.TOP)
+    return "Docked window to the top"
+
+def command_dock_bottom() -> str:
+    # Implement the logic to dock the pocket to the bottom of the specified monitor
+    sidebar_manager.dock_window(side=Side.BOTTOM)
+    return "Docked window to the bottom"
+
 def command_dock_right() -> str:
     # Implement the logic to dock the pocket to the right of the specified monitor
     sidebar_manager.dock_window(side=Side.RIGHT)
@@ -36,6 +46,16 @@ commands = {
     },
     "dock-right": {
         "handler": command_dock_right,
+        "args": [],
+        "args_description": []
+    },
+    "dock-top": {
+        "handler": command_dock_top,
+        "args": [],
+        "args_description": []
+    },
+    "dock-bottom": {
+        "handler": command_dock_bottom,
         "args": [],
         "args_description": []
     },

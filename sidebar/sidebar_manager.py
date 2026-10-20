@@ -124,8 +124,8 @@ class StrutsLeft(Struts):
         windows_width = self.size - self.margins.left - self.margins.right
         windows_height = int((inner_h - self.gap * (len(self.windows) - 1)) / len(self.windows))
 
-        width_fract = windows_width / usable_width
-        height_fract = windows_height / usable_height
+        width_fract = max(windows_width / usable_width, 0.1)
+        height_fract = max(windows_height / usable_height, 0.1)
 
         for i, window in enumerate(self.windows):
             window.set_extent(width_fract, height_fract)
@@ -151,8 +151,8 @@ class StrutsRight(Struts):
         windows_width = self.size - self.margins.left - self.margins.right
         windows_height = int((inner_h - self.gap * (len(self.windows) - 1)) / len(self.windows))
 
-        width_fract = windows_width / usable_width
-        height_fract = windows_height / usable_height
+        width_fract = max(windows_width / usable_width, 0.1)
+        height_fract = max(windows_height / usable_height, 0.1)
 
         for i, window in enumerate(self.windows):
             window.set_extent(width_fract, height_fract)
@@ -177,8 +177,8 @@ class StrutsTop(Struts):
         windows_height = self.size - self.margins.top - self.margins.bottom
         windows_width = int((inner_w - self.gap * (len(self.windows) - 1)) / len(self.windows))
 
-        width_fract = windows_width / usable_width
-        height_fract = windows_height / usable_height
+        width_fract = max(windows_width / usable_width, 0.1)
+        height_fract = max(windows_height / usable_height, 0.1)
 
         for i, window in enumerate(self.windows):
             window.set_extent(width_fract, height_fract)
@@ -203,8 +203,8 @@ class StrutsBottom(Struts):
         windows_height = self.size - self.margins.top - self.margins.bottom
         windows_width = int((inner_w - self.gap * (len(self.windows) - 1)) / len(self.windows))
 
-        width_fract = windows_width / usable_width
-        height_fract = windows_height / usable_height
+        width_fract = max(windows_width / usable_width, 0.1)
+        height_fract = max(windows_height / usable_height, 0.1)
 
         for i, window in enumerate(self.windows):
             window.set_extent(width_fract, height_fract)
