@@ -1,6 +1,7 @@
 import asyncio
 import os
-from dataclasses import dataclass
+import tomllib
+from dataclasses import dataclass, field
 from enum import Enum
 
 from output import Output
@@ -16,19 +17,20 @@ class Side(Enum):
 
 UPDATE_DELAY = 0.5
 
-struts_sizes = {
-    Side.LEFT: 400,
-    Side.RIGHT: 400,
-    Side.TOP: 100,
-    Side.BOTTOM: 100
-}
-
 @dataclass
 class Margins:
-    left: int = 0
-    top: int = 0
-    right: int = 0
-    bottom: int = 0
+    left: int = 4
+    top: int = 4
+    right: int = 4
+    bottom: int = 4
+
+
+@dataclass
+class StrutSettings:
+    enabled: bool = True
+    gap: int = 4
+    size: int = 400
+    margins: Margins = field(default_factory=Margins)
 
 
 class Struts:
@@ -215,17 +217,79 @@ class StrutsBottom(Struts):
         return False
 
 
+STRUT_CLASSES = {
+    Side.LEFT: StrutsLeft,
+    Side.RIGHT: StrutsRight,
+    Side.TOP: StrutsTop,
+    Side.BOTTOM: StrutsBottom,
+}
+
+
 class SidebarManager:
     def __init__(self):
         self.struts : list[Struts] = []
         self._update_task: asyncio.Task | None = None
         self.umbriel_config_path = f"{os.environ['XDG_RUNTIME_DIR']}/umbriel-sidebar.toml"
+        config_home = os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
+        self.settings_path = os.path.join(config_home, "umbriel-sidebar", "config.toml")
+        self.strut_settings = self._load_strut_settings()
+
+    def _load_strut_settings(self) -> dict[Side, StrutSettings]:
+        if not os.path.exists(self.settings_path):
+            return {side: StrutSettings() for side in Side}
+
+        with open(self.settings_path, "rb") as settings_file:
+            config = tomllib.load(settings_file)
+
+        side_settings = config.get("struts", {})
+        if not isinstance(side_settings, dict):
+            raise TypeError("The 'struts' setting must be a TOML table.")
+
+        settings = {}
+        for side in Side:
+            values = side_settings.get(side.value, {})
+            if not isinstance(values, dict):
+                raise TypeError(f"Settings for strut '{side.value}' must be a TOML table.")
+            margin_values = values.get("margins", {})
+            if not isinstance(margin_values, dict):
+                raise TypeError(f"Margins for strut '{side.value}' must be a TOML table.")
+
+            enabled = values.get("enabled", True)
+            gap = values.get("gap", 4)
+            size = values.get("size", 400)
+            if not isinstance(enabled, bool):
+                raise TypeError(f"'struts.{side.value}.enabled' must be a boolean.")
+            if type(gap) is not int or gap < 0:
+                raise ValueError(f"'struts.{side.value}.gap' must be a non-negative integer.")
+            if type(size) is not int or size <= 0:
+                raise ValueError(f"'struts.{side.value}.size' must be a positive integer.")
+
+            margins = {}
+            for name in ("left", "top", "right", "bottom"):
+                margin = margin_values.get(name, 4)
+                if type(margin) is not int or margin < 0:
+                    raise ValueError(
+                        f"'struts.{side.value}.margins.{name}' must be a non-negative integer."
+                    )
+                margins[name] = margin
+
+            settings[side] = StrutSettings(
+                enabled=enabled,
+                gap=gap,
+                size=size,
+                margins=Margins(**margins),
+            )
+        return settings
 
     def __del__(self):
         if os.path.exists(self.umbriel_config_path):
             os.remove(self.umbriel_config_path)
 
     def dock_window(self, side: Side):
+        settings = self.strut_settings[side]
+        if not settings.enabled:
+            return False
+
         focused_window = Window.get_focused_window()
         if not focused_window:
             return False
@@ -238,19 +302,13 @@ class SidebarManager:
                 strut_found = strut
                 break
         if strut_found is None:
-            margins = Margins()
-            margins.left = 10
-            margins.right = 10
-            margins.top = 10
-            margins.bottom = 10
-            if side == Side.LEFT:
-                strut_found = StrutsLeft(workspace=window.workspace, size=struts_sizes[Side.LEFT], margins=margins, gap=10)
-            elif side == Side.RIGHT:
-                strut_found = StrutsRight(workspace=window.workspace, size=struts_sizes[Side.RIGHT], margins=margins, gap=10)
-            elif side == Side.TOP:
-                strut_found = StrutsTop(workspace=window.workspace, size=struts_sizes[Side.TOP], margins=margins, gap=10)
-            elif side == Side.BOTTOM:
-                strut_found = StrutsBottom(workspace=window.workspace, size=struts_sizes[Side.BOTTOM], margins=margins)
+            strut_class = STRUT_CLASSES[side]
+            strut_found = strut_class(
+                workspace=window.workspace,
+                size=settings.size,
+                margins=settings.margins,
+                gap=settings.gap,
+            )
             self.struts.append(strut_found)
         
         strut_found.add_window(window)
