@@ -3,10 +3,14 @@
 import asyncio
 import os
 import shlex
+import sys
 
-import utils
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from sidebar_manager import Side, SidebarManager
-from stream import UmbrielStream
+
+from umbriel import utils
+from umbriel.stream import UmbrielStream
 
 stream: UmbrielStream | None = None
 

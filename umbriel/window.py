@@ -1,4 +1,4 @@
-from ipc import umbriel_send_action, umbriel_send_command
+from umbriel.ipc import umbriel_send_action, umbriel_send_command
 
 
 # Define the window class to encapsulate its properties and actions.

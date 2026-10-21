@@ -4,9 +4,9 @@ import tomllib
 from dataclasses import dataclass, field
 from enum import Enum
 
-from output import Output
-from window import Window
-from workspace import Workspace
+from umbriel.output import Output
+from umbriel.window import Window
+from umbriel.workspace import Workspace
 
 
 class Side(Enum):

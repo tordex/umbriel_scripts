@@ -1,4 +1,4 @@
-import utils
+from umbriel import utils
 
 
 # Define the monitor and window classes to encapsulate their properties and actions.
