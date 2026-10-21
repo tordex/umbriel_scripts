@@ -42,14 +42,17 @@ class Struts:
         self.windows = []
         self.gap = gap
         self.margins = margins if margins is not None else Margins()
+        # Space taken by earlier-created perpendicular struts.
+        self.occupied = Margins(0, 0, 0, 0)
 
     def _inner_area(self, usable_width: int, usable_height: int) -> tuple[int, int, int, int]:
-        """Return (x, y, width, height) of the usable area reduced by the margins."""
+        """Return (x, y, width, height) of the usable area reduced by the margins and occupied areas."""
         m = self.margins
-        return (m.left,
-                m.top,
-                max(1, usable_width - m.left - m.right),
-                max(1, usable_height - m.top - m.bottom))
+        o = self.occupied
+        return (m.left + o.left,
+                m.top + o.top,
+                max(1, usable_width - m.left - m.right - o.left - o.right),
+                max(1, usable_height - m.top - m.bottom - o.top - o.bottom))
 
     def add_window(self, window: Window):
         self.windows.append(window)
@@ -310,9 +313,29 @@ class SidebarManager:
                 gap=settings.gap,
             )
             self.struts.append(strut_found)
-        
+
+        self._update_occupied()
         strut_found.add_window(window)
         self.update_umbriel_config()
+
+    def _update_occupied(self):
+        """Each strut excludes the area of earlier struts on perpendicular sides of the same workspace."""
+        for i, strut in enumerate(self.struts):
+            occ = Margins(0, 0, 0, 0)
+            horizontal = strut.side in (Side.LEFT, Side.RIGHT)
+            for prev in self.struts[:i]:
+                if prev.workspace_id != strut.workspace_id:
+                    continue
+                if horizontal:
+                    if prev.side == Side.TOP:
+                        occ.top += prev.size
+                    elif prev.side == Side.BOTTOM:
+                        occ.bottom += prev.size
+                elif prev.side == Side.LEFT:
+                    occ.left += prev.size
+                elif prev.side == Side.RIGHT:
+                    occ.right += prev.size
+            strut.occupied = occ
 
 
     def update_umbriel_config(self):
@@ -359,6 +382,7 @@ class SidebarManager:
         self._do_update()
 
     def _do_update(self):
+        self._update_occupied()
         for strut in self.struts:
             strut.update()
         self.update_umbriel_config()
