@@ -299,6 +299,12 @@ class SidebarManager:
 
         window = focused_window
 
+        # Already docked: detach from the current strut first.
+        for strut in self.struts:
+            if strut.has_window(window):
+                strut.windows = [w for w in strut.windows if w.id != window.id]
+        self.struts = [s for s in self.struts if s.windows]
+
         strut_found = None
         for strut in self.struts:
             if strut.side == side and strut.workspace_id == window.workspace:
@@ -317,6 +323,7 @@ class SidebarManager:
         self._update_occupied()
         strut_found.add_window(window)
         self.update_umbriel_config()
+        self.update()  # re-layout the remaining struts
 
     def _update_occupied(self):
         """Each strut excludes the area of earlier struts on perpendicular sides of the same workspace."""
