@@ -1,4 +1,4 @@
-from umbriel.ipc import umbriel_send_action, umbriel_send_command
+import umbriel.ipc
 
 
 # Define the window class to encapsulate its properties and actions.
@@ -41,27 +41,28 @@ class Window:
     def make_floating(self, floating: bool = True):
         if self.floating != floating:
             self.floating = floating
-            umbriel_send_action(f"window-toggle-floating:{self.id}")
+            umbriel.ipc.window_toggle_floating(self.id)
 
     def focus(self):
-        return umbriel_send_action(f"window-focus:{self.id}")
+        return umbriel.ipc.window_focus(self.id)
 
     def set_position(self, x: int, y: int):
-        umbriel_send_action(f"window-move-to:top_left/{x}/{y}/{self.id}")
+        return umbriel.ipc.window_move_to(umbriel.ipc.Anchor.TOP_LEFT, x, y, self.id)
 
     def set_extent(self, width: float, height: float):
         focused_window = self.get_focused_window()
         if focused_window is None:
             return False
         self.focus()
-        umbriel_send_action(f"window-set-primary-extent:{width}")
-        umbriel_send_action(f"window-set-secondary-extent:{height}")
-        focused_window.focus()
+        result_primary = umbriel.ipc.window_set_primary_extent(width)
+        result_secondary = umbriel.ipc.window_set_secondary_extent(height)
+        result_focus = focused_window.focus()
+        return result_primary and result_secondary and result_focus
 
     @staticmethod
     def get_window(window_id):
         """Get window information using niri."""
-        window_data = umbriel_send_command("windows", jq_query=f'.[] | select(.id == "{window_id}")')
+        window_data = umbriel.ipc.send_query("windows", jq_query=f'.[] | select(.id == "{window_id}")')
         if window_data:
             return Window(window_data)
         return None
@@ -69,7 +70,7 @@ class Window:
     @staticmethod
     def get_focused_window():
         """Get the currently focused window using niri."""
-        window_data = umbriel_send_command("windows", jq_query='.[] | select(.active)')
+        window_data = umbriel.ipc.send_query("focused-window")
         if window_data:
             window_obj = Window(window_data)
             return window_obj

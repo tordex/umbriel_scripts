@@ -1,10 +1,22 @@
 import json
 import os
 import socket
+from enum import Enum
 from typing import Self
 
 import jq
 
+
+class Anchor(Enum):
+    TOP_LEFT = "top_left"
+    TOP_RIGHT = "top_right"
+    BOTTOM_LEFT = "bottom_left"
+    BOTTOM_RIGHT = "bottom_right"
+    CENTER = "center"
+    LEFT = "left"
+    RIGHT = "right"
+    TOP = "top"
+    BOTTOM = "bottom"
 
 class _UmbrielIPCClient:
     """Client for interacting with Umbriel IPC via Unix domain socket."""
@@ -76,7 +88,7 @@ class _UmbrielIPCClient:
         self.close()
 
 
-def umbriel_send_command(cmd: str, jq_query: str | None = None) -> dict | None:
+def send_query(cmd: str, jq_query: str | None = None) -> dict | None:
     with _UmbrielIPCClient() as client:
         response = json.loads(client.send_cmd(json.dumps({"cmd": cmd}) + "\n"))
         if "ok" in response:
@@ -86,11 +98,41 @@ def umbriel_send_command(cmd: str, jq_query: str | None = None) -> dict | None:
             return response
         return None
 
-def umbriel_send_action(action: str) -> bool:
+
+def send_action(action: str, args: dict | None = None) -> bool:
     with _UmbrielIPCClient() as client:
-        data = json.loads(client.send_cmd(json.dumps({"cmd": "msg", "arg": action}) + "\n"))
+        query = {
+            "cmd": "action",
+            "action": action
+        }
+        if args is not None:
+            for key, value in args.items():
+                query[key] = value
+        data = json.loads(client.send_cmd(json.dumps(query) + "\n"))
         if "ok" in data:
             return True
         if "err" in data:
             print(f"Error: {data['err']}, Action: {action}")
         return False
+
+
+def window_focus(window: str) -> bool:
+    return send_action("window-focus", {"window": window})
+
+def window_toggle_floating(window: str | None = None) -> bool:
+    args = None
+    if window is not None:
+        args = {"window": window}
+    return send_action("window-toggle-floating", args)
+
+def window_move_to(anchor: Anchor, x: int, y: int, window: str | None = None) -> bool:
+    args = {"x": x, "y": y, "anchor": anchor.value}
+    if window is not None:
+        args["window"] = window
+    return send_action("window-move-to", args)
+
+def window_set_primary_extent(fraction: float) -> bool:
+    return send_action("window-set-primary-extent", {"fraction": fraction})
+
+def window_set_secondary_extent(fraction: float) -> bool:
+    return send_action("window-set-secondary-extent", {"fraction": fraction})

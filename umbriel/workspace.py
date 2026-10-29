@@ -1,4 +1,4 @@
-from umbriel.ipc import umbriel_send_command
+import umbriel.ipc
 
 
 class Workspace:
@@ -29,7 +29,7 @@ class Workspace:
     @staticmethod
     def get_workspace(id):
         """Get workspace information"""
-        workspace_data = umbriel_send_command("workspaces", jq_query=f'.[] | select(.id == "{id}")')
+        workspace_data = umbriel.ipc.send_query("workspaces", jq_query=f'.[] | select(.id == "{id}")')
         if workspace_data:
             return Workspace(workspace_data)
         return None
@@ -37,7 +37,7 @@ class Workspace:
     @staticmethod
     def get_focused():
         """Get the currently focused workspace"""
-        workspace_data = umbriel_send_command("workspaces", jq_query='.[] | select(.focused) | select(.active)')
+        workspace_data = umbriel.ipc.send_query("workspaces", jq_query='.[] | select(.focused) | select(.active)')
         if workspace_data:
             return Workspace(workspace_data)
         return None

@@ -1,4 +1,4 @@
-from umbriel.ipc import umbriel_send_command
+import umbriel.ipc
 
 
 class Output:
@@ -32,7 +32,7 @@ class Output:
     @staticmethod
     def get_output(name):
         """Get output information using niri."""
-        output_data = umbriel_send_command("outputs", jq_query=f'.[] | select(.name == "{name}")')
+        output_data = umbriel.ipc.send_query("outputs", jq_query=f'.[] | select(.name == "{name}")')
         if output_data:
             return Output(output_data)
         return None
@@ -40,7 +40,7 @@ class Output:
     @staticmethod
     def get_focused_outputs():
         """Get all active outputs using niri."""
-        outputs_data = umbriel_send_command("outputs", jq_query='.[] | select(.focused)')
+        outputs_data = umbriel.ipc.send_query("outputs", jq_query='.[] | select(.focused)')
         if outputs_data:
             return Output(outputs_data)
         return None
